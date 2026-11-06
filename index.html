@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TuşRitmi — Klavye Hızlı Yazma Testi</title>
+  <meta name="description" content="Animasyonlu klavye hızlı yazma testi. Rastgele kelimeler ya da kendi metninle WPM ölç, parmak rehberiyle doğru parmak kullanımını öğren.">
+  <meta name="theme-color" content="#0b0e14">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0e14'/%3E%3Crect x='6' y='7' width='5' height='18' rx='1.5' fill='%233ef08f'/%3E%3Crect x='13.5' y='7' width='5' height='18' rx='1.5' fill='%23e6e9ef'/%3E%3Crect x='21' y='7' width='5' height='18' rx='1.5' fill='%23ff9f1c'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="TuşRitmi ana sayfa">
+      <span class="brand-keys" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="brand-name">Tuş<b>Ritmi</b></span>
+    </a>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" role="tab" data-view="test" aria-selected="true">
+        <svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Hız Testi
+      </button>
+      <button class="tab" role="tab" data-view="guide" aria-selected="false">
+        <svg viewBox="0 0 24 24"><path d="M8 13V5a1.5 1.5 0 0 1 3 0v6m0-1V3.5a1.5 1.5 0 0 1 3 0V10m0-.5V5a1.5 1.5 0 0 1 3 0v6m0-3a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1.5a7 7 0 0 1-5.6-2.8L3.4 15.6a1.6 1.6 0 0 1 2.5-2L8 15.5"/></svg>Parmak Rehberi
+      </button>
+    </nav>
+
+    <div class="toggles">
+      <button class="icon-btn" id="btnFx" title="Efekt yoğunluğu">
+        <svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="2.5"/></svg>
+        <span id="fxLabel">Efekt: Yüksek</span>
+      </button>
+      <button class="icon-btn" id="btnSound" title="Piyano sesi">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v10M12 4v10M16 4v10M8 14v6M12 14v6M16 14v6"/></svg>
+        <span id="soundLabel">Ses: Kapalı</span>
+      </button>
+      <button class="icon-btn" id="btnKb" title="Ekran klavyesini göster/gizle">
+        <svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>
+        <span id="kbLabel">Klavye: Açık</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ HIZ TESTİ ============ -->
+    <section class="view" id="view-test">
+      <div class="config" id="config">
+        <div class="group" id="cfgExtras">
+          <button data-toggle="punct"><b>@</b> noktalama</button>
+          <button data-toggle="nums"><b>#</b> sayılar</button>
+        </div>
+        <span class="sep"></span>
+        <div class="group" id="cfgMode">
+          <button data-mode="time"><b>⏱</b> süre</button>
+          <button data-mode="words"><b>A</b> kelime</button>
+          <button data-mode="custom"><b>✎</b> kendi metnim</button>
+        </div>
+        <span class="sep"></span>
+        <div class="group" id="cfgAmount"></div>
+        <span class="sep"></span>
+        <div class="group" id="cfgLang">
+          <button data-lang="tr">Türkçe</button>
+          <button data-lang="en">English</button>
+        </div>
+      </div>
+
+      <div class="test-area" id="testArea">
+        <div class="live" id="live">
+          <div class="live-main" id="liveProgress">30</div>
+          <div class="live-sub"><span id="liveWpm">0</span> wpm</div>
+          <div class="live-sub"><span id="liveAcc">100</span>% doğruluk</div>
+          <div class="live-pb" id="livePb"></div>
+        </div>
+
+        <div class="typing-wrap" id="typingWrap" tabindex="-1">
+          <div class="words" id="words"></div>
+          <div class="focus-overlay" id="focusOverlay">
+            <svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
+            Devam etmek için tıkla ya da bir tuşa bas
+          </div>
+          <input id="hiddenInput" class="hidden-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Yazma alanı">
+        </div>
+
+        <div class="test-actions">
+          <button class="ghost-btn" id="btnRestart" title="Yeniden başlat (Tab)">
+            <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          </button>
+        </div>
+
+        <div class="kb-mini-wrap" id="kbMiniWrap">
+          <div class="keyboard mini" id="kbTest"></div>
+        </div>
+      </div>
+
+      <!-- Sonuçlar -->
+      <div class="results" id="results" hidden>
+        <div class="res-top">
+          <div class="res-big">
+            <div class="stat-big"><span class="lbl">wpm</span><span class="val" id="rWpm">0</span></div>
+            <div class="stat-big"><span class="lbl">doğruluk</span><span class="val" id="rAcc">0%</span></div>
+            <div class="pb-badge" id="pbBadge" hidden>🏆 Yeni rekor!</div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="chart"></canvas>
+            <div class="chart-legend">
+              <span><i class="lg-wpm"></i>wpm</span><span><i class="lg-raw"></i>ham</span><span><i class="lg-err"></i>hata</span>
+            </div>
+          </div>
+        </div>
+        <div class="res-grid">
+          <div><span class="lbl">test</span><span class="v" id="rType">-</span></div>
+          <div><span class="lbl">ham hız</span><span class="v" id="rRaw">0</span></div>
+          <div><span class="lbl" title="doğru / yanlış / fazla / eksik">karakter</span><span class="v" id="rChars">0/0/0/0</span></div>
+          <div><span class="lbl">tutarlılık</span><span class="v" id="rCons">0%</span></div>
+          <div><span class="lbl">süre</span><span class="v" id="rTime">0s</span></div>
+          <div><span class="lbl">en iyi</span><span class="v" id="rPb">-</span></div>
+        </div>
+        <div class="res-actions">
+          <button class="btn primary" id="btnNext">Sonraki test <kbd>Tab</kbd></button>
+          <button class="btn" id="btnRepeat">Aynı metni tekrarla</button>
+        </div>
+      </div>
+
+      <p class="hints"><kbd>Tab</kbd> yeni test &nbsp;·&nbsp; <kbd>Esc</kbd> sıfırla &nbsp;·&nbsp; <kbd>Ctrl</kbd>+<kbd>⌫</kbd> kelimeyi sil</p>
+    </section>
+
+    <!-- ============ PARMAK REHBERİ ============ -->
+    <section class="view" id="view-guide" hidden>
+      <div class="guide-head">
+        <div>
+          <h1>Parmak Rehberi</h1>
+          <p>Türkçe Q klavyede her tuşun hangi parmakla basıldığını gör, sonra alıştırma yap. Parmakların her vuruştan sonra <b>ana sıraya</b> (A S D F — J K L Ş) geri dönmeli.</p>
+        </div>
+        <div class="group lessons" id="lessonPick">
+          <button data-lesson="home">Ana sıra</button>
+          <button data-lesson="top">Üst sıra</button>
+          <button data-lesson="bottom">Alt sıra</button>
+          <button data-lesson="freq">Sık harfler</button>
+          <button data-lesson="all">Tüm harfler</button>
+          <button data-lesson="numbers">Sayılar</button>
+          <button data-lesson="explore">Serbest keşif</button>
+        </div>
+      </div>
+
+      <div class="drill-card">
+        <div class="drill-target">
+          <div class="drill-key" id="drillKey">F</div>
+          <div>
+            <div class="drill-label">sıradaki tuş</div>
+            <div class="drill-finger"><span class="dot" id="fingerDot"></span><span id="drillFinger">Sol işaret parmağı</span></div>
+          </div>
+        </div>
+        <div class="drill-strip-wrap"><div class="drill-strip" id="drillStrip"></div></div>
+        <div class="drill-stats">
+          <div><b id="gOk">0</b><span>doğru</span></div>
+          <div><b id="gErr">0</b><span>hata</span></div>
+          <div><b id="gAcc">100%</b><span>isabet</span></div>
+          <div><b id="gKpm">0</b><span>tuş/dk</span></div>
+        </div>
+      </div>
+
+      <div class="guide-board">
+        <div class="keyboard big fingers" id="kbGuide"></div>
+
+        <svg class="hands" id="hands" viewBox="0 0 520 250" aria-label="El ve parmak şeması">
+          <defs>
+            <filter id="fglow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="5" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <g class="hand" transform="translate(8,4)">
+            <rect class="finger" data-f="th" x="146" y="104" width="34" height="96" rx="17" transform="rotate(34 163 192)"/>
+            <rect class="finger" data-f="lp" x="18" y="78" width="32" height="100" rx="16"/>
+            <rect class="finger" data-f="lr" x="56" y="38" width="34" height="135" rx="17"/>
+            <rect class="finger" data-f="lm" x="96" y="20" width="34" height="150" rx="17"/>
+            <rect class="finger" data-f="li" x="136" y="42" width="34" height="130" rx="17"/>
+            <rect class="palm" x="14" y="128" width="160" height="110" rx="46"/>
+            <text class="hand-label" x="94" y="196">SOL</text>
+          </g>
+          <g class="hand" transform="translate(512,4) scale(-1,1)">
+            <rect class="finger" data-f="th" x="146" y="104" width="34" height="96" rx="17" transform="rotate(34 163 192)"/>
+            <rect class="finger" data-f="rp" x="18" y="78" width="32" height="100" rx="16"/>
+            <rect class="finger" data-f="rr" x="56" y="38" width="34" height="135" rx="17"/>
+            <rect class="finger" data-f="rm" x="96" y="20" width="34" height="150" rx="17"/>
+            <rect class="finger" data-f="ri" x="136" y="42" width="34" height="130" rx="17"/>
+            <rect class="palm" x="14" y="128" width="160" height="110" rx="46"/>
+          </g>
+          <text class="hand-label" x="418" y="200" text-anchor="middle">SAĞ</text>
+        </svg>
+
+        <div class="legend" id="legend"></div>
+      </div>
+
+      <div class="tips">
+        <article>
+          <h3>🏠 Ana sıra</h3>
+          <p>Sol el parmakları <b>A S D F</b>, sağ el parmakları <b>J K L Ş</b> üzerinde durur. <b>F</b> ve <b>J</b> tuşlarındaki çıkıntılar bakmadan yerini bulmanı sağlar.</p>
+        </article>
+        <article>
+          <h3>⇧ Büyük harf</h3>
+          <p>Büyük harf için <b>karşı eldeki</b> Shift'e serçe parmakla bas. Sol eldeki bir harf için sağ Shift, sağ eldeki için sol Shift kullan.</p>
+        </article>
+        <article>
+          <h3>␣ Boşluk ve ritim</h3>
+          <p>Boşluk tuşuna başparmakla bas. Hızdan önce doğruluğa odaklan, sabit bir ritim tuttur. Hız zamanla kendiliğinden artar.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">TuşRitmi · Türkçe Q klavye düzeni · Skorlar yalnızca bu tarayıcıda saklanır</footer>
+
+  <!-- Kendi metnin -->
+  <dialog id="customDlg" class="dialog">
+    <form method="dialog" id="customForm">
+      <h2>Kendi metnin</h2>
+      <p class="muted">Metni yapıştır, yaz ya da bir <b>.txt</b> dosyasını buraya sürükle.</p>
+      <div class="drop" id="drop">
+        <textarea id="customText" placeholder="Örn: Bir varmış bir yokmuş, evvel zaman içinde..."></textarea>
+        <div class="drop-hint">Dosyayı bırak</div>
+      </div>
+      <div class="dlg-row">
+        <label class="btn small file-btn"><input type="file" id="fileIn" accept=".txt,text/plain">📄 Dosya yükle</label>
+        <label class="check"><input type="checkbox" id="optSimplify" checked> Tırnak/tire gibi özel işaretleri sadeleştir</label>
+        <label class="check"><input type="checkbox" id="optShuffle"> Kelimeleri karıştır</label>
+        <span class="muted" id="customCount">0 kelime</span>
+      </div>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Vazgeç</button>
+        <button class="btn primary" id="customApply" value="ok">Teste başla</button>
+      </div>
+    </form>
+  </dialog>
+
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <script src="js/words.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/keyboard.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/guide.js"></script>
+</body>
+</html>
