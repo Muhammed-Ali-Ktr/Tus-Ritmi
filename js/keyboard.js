@@ -18,7 +18,7 @@ window.KB = (() => {
   const sp = (code, label, w, f) => ({ code, label, w, f, special: true });
 
   // Her satır: [önce özel tuşlar], karakter tuşları, [sonra özel tuşlar]
-  const ROWS = [
+  const Q_ROWS = [
     {
       keys: ['"', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '*', '-'],
       shift: ['é', '!', "'", '^', '+', '%', '&', '/', '(', ')', '=', '?', '_'],
@@ -52,15 +52,33 @@ window.KB = (() => {
     },
   ];
 
+  // Turkish F layout, arranged on the same physical key positions as the Q rows.
+  const F_ROWS = [
+    Q_ROWS[0],
+    { ...Q_ROWS[1], keys: ['f','g','ğ','ı','o','d','r','n','h','p','q','w',','], fingers: 'lp lr lm li li ri ri rm rr rp rp rp rp' },
+    { ...Q_ROWS[2], keys: ['u','i','e','a','ü','t','k','m','l','y','ş'] },
+    { ...Q_ROWS[3], keys: ['j','ö','v','c','ç','z','s','b','.','x','-'], shift: ['J','Ö','V','C','Ç','Z','S','B',':','X','_'] },
+    Q_ROWS[4],
+  ];
+  const LAYOUTS = { q: Q_ROWS, f: F_ROWS };
+  const PHYSICAL_CODES = [
+    ['Backquote','Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9','Digit0','Minus','Equal'],
+    ['KeyQ','KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP','BracketLeft','BracketRight','Backslash'],
+    ['KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL','Semicolon','Quote'],
+    ['IntlBackslash','KeyZ','KeyX','KeyC','KeyV','KeyB','KeyN','KeyM','Comma','Period','Slash'],
+    ['Space'],
+  ];
+
   const HOME = new Set(['f', 'j']);
   const isLetter = (c) => c.length === 1 && c.toLocaleLowerCase('tr') !== up(c);
 
   /** Klavyeyi container içine çizer, arama tabloları döndürür */
-  function create(container) {
+  function create(container, layout = 'q') {
     const el = typeof container === 'string' ? document.querySelector(container) : container;
     el.innerHTML = '';
     const byChar = new Map();   // karakter -> {el, f, shifted, base}
     const byCode = new Map();   // e.code -> el
+    const charByCode = new Map();
     const all = [];
 
     const addKey = (rowEl, k) => {
@@ -88,7 +106,8 @@ window.KB = (() => {
       all.push(d);
     };
 
-    ROWS.forEach((row) => {
+    const rows = LAYOUTS[layout] || Q_ROWS;
+    rows.forEach((row, rowIndex) => {
       const r = document.createElement('div');
       r.className = 'kb-row';
       (row.pre || []).forEach((k) => addKey(r, k));
@@ -100,6 +119,11 @@ window.KB = (() => {
           w: (row.widths && row.widths[i]) || 1,
           label: row.labels && row.labels[i],
         });
+        const keyEl = r.lastElementChild;
+        if (PHYSICAL_CODES[rowIndex] && PHYSICAL_CODES[rowIndex][i]) {
+          byCode.set(PHYSICAL_CODES[rowIndex][i], keyEl);
+          charByCode.set(PHYSICAL_CODES[rowIndex][i], { char: c, shift: shift || up(c) });
+        }
       });
       (row.post || []).forEach((k) => addKey(r, k));
       el.appendChild(r);
@@ -115,6 +139,12 @@ window.KB = (() => {
       if (byCode.has(e.code)) return { el: byCode.get(e.code), f: byCode.get(e.code).dataset.f };
       if (e.key && e.key.length === 1) return find(e.key);
       return null;
+    }
+
+    function characterFromEvent(e) {
+      const mapped = charByCode.get(e.code);
+      if (!mapped) return e.key;
+      return e.shiftKey ? mapped.shift : mapped.char;
     }
 
     function flash(target, cls) {
@@ -138,12 +168,12 @@ window.KB = (() => {
       return k;
     }
 
-    return { el, byChar, byCode, all, find, fromEvent, flash, press };
+    return { el, byChar, byCode, all, find, fromEvent, characterFromEvent, flash, press };
   }
 
   /** Karakter -> parmak (klavye çizmeden) */
   const fingerMap = new Map();
-  ROWS.forEach((row) => {
+  Q_ROWS.forEach((row) => {
     const fs = row.fingers.split(' ');
     row.keys.forEach((c, i) => {
       fingerMap.set(c, fs[i]);
@@ -152,5 +182,5 @@ window.KB = (() => {
     });
   });
 
-  return { FINGERS, ROWS, create, fingerOf: (c) => fingerMap.get(c) || fingerMap.get(c.toLocaleLowerCase('tr')) };
+  return { FINGERS, ROWS: Q_ROWS, LAYOUTS, create, fingerOf: (c) => fingerMap.get(c) || fingerMap.get(c.toLocaleLowerCase('tr')) };
 })();

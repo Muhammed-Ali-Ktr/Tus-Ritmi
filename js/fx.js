@@ -7,7 +7,7 @@ window.FX = (() => {
   const ctx = cv.getContext('2d');
   let W = 0, H = 0, dpr = 1;
   let level = 2;              // 0 kapalı, 1 düşük, 2 yüksek
-  const beams = [], rings = [], parts = [], flashes = [], boxes = [];
+  const beams = [], rings = [], parts = [], flashes = [], boxes = [], impacts = [];
   const MAX_PARTS = 700;
   let running = false, last = 0;
 
@@ -85,6 +85,25 @@ window.FX = (() => {
       const a = Math.atan2(py - cy, px - cx) + rnd(-0.5, 0.5);
       const sp = rnd(80, 300);
       spark(px, py, c, Math.cos(a) * sp, Math.sin(a) * sp - 60, rnd(420, 820), rnd(1.2, 3));
+    }
+    start();
+  }
+
+  /** Uzun ve hızlı seriden sonra yapılan hatayı karakterin üzerinde belirginleştirir. */
+  function mistakeEl(el, streak = 0) {
+    if (!level || !el) return;
+    const r = el.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const c = PALETTE.bad;
+    const power = Math.min(1.7, 1 + streak / 80);
+    impacts.push({ x, y, t: 0, life: 580, power });
+    flashes.push({ x, y, r: 105 * power, t: 0, life: 420, c, lineW: 150 * power, flat: 1 });
+    rings.push({ x, y, r0: 8, r1: 115 * power, t: 0, life: 620, c, lw: 4, flat: 0.8 });
+    rings.push({ x, y, r0: 3, r1: 68 * power, t: -75, life: 500, c, lw: 2.5, flat: 0.8 });
+    const count = level === 2 ? 44 : 20;
+    for (let i = 0; i < count; i++) {
+      const a = rnd(0, Math.PI * 2), speed = rnd(150, 520) * power;
+      spark(x, y, c, Math.cos(a) * speed, Math.sin(a) * speed, rnd(420, 850), rnd(2, 4.5));
     }
     start();
   }
@@ -173,6 +192,26 @@ window.FX = (() => {
       ctx.fill();
     }
 
+    // Çizgi roman tarzı yıldız patlaması: kısa, yüksek kontrastlı ve tuş alanının dışında.
+    for (const b of impacts) {
+      const k = Math.min(1, b.t / 170), fade = 1 - b.t / b.life;
+      const outer = (42 + 76 * k) * b.power, inner = outer * .62;
+      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(-Math.PI / 2);
+      ctx.beginPath();
+      for (let i = 0; i < 20; i++) {
+        const a = i * Math.PI / 10, rad = i % 2 ? inner : outer;
+        const px = Math.cos(a) * rad, py = Math.sin(a) * rad * .82;
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.closePath(); ctx.fillStyle = `rgba(255,61,90,${.86 * fade})`; ctx.fill();
+      ctx.lineWidth = 5 * fade + 1; ctx.strokeStyle = `rgba(255,255,255,${.95 * fade})`; ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = `rgba(12,14,20,${fade})`; ctx.stroke();
+      ctx.rotate(Math.PI / 2); ctx.font = `900 ${Math.round(28 * b.power)}px Inter, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = `rgba(12,14,20,${fade})`; ctx.lineWidth = 7; ctx.strokeText('!', 0, 1);
+      ctx.fillStyle = `rgba(255,255,255,${fade})`; ctx.fillText('!', 0, 1); ctx.restore();
+    }
+
     // Kıvılcımlar
     const sec = dt / 1000;
     for (const p of parts) {
@@ -187,10 +226,10 @@ window.FX = (() => {
       ctx.beginPath(); ctx.arc(p.x, p.y, s * 3, 0, Math.PI * 2); ctx.fill();
     }
 
-    step(beams, realDt); step(flashes, realDt); step(rings, realDt); step(parts, realDt); step(boxes, realDt);
+    step(beams, realDt); step(flashes, realDt); step(rings, realDt); step(parts, realDt); step(boxes, realDt); step(impacts, realDt);
     ctx.globalCompositeOperation = 'source-over';
 
-    if (beams.length + flashes.length + rings.length + parts.length + boxes.length) {
+    if (beams.length + flashes.length + rings.length + parts.length + boxes.length + impacts.length) {
       requestAnimationFrame(loop);
     } else {
       running = false;
@@ -217,7 +256,7 @@ window.FX = (() => {
   }
 
   return {
-    hit, hitEl, wordBurst, celebrate,
+    hit, hitEl, wordBurst, mistakeEl, celebrate,
     setLevel(l) { level = l; },
     get level() { return level; },
   };

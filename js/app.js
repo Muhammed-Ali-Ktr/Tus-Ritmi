@@ -11,7 +11,7 @@ window.App = (() => {
     get(k, d) { try { const v = localStorage.getItem('tusritmi_' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem('tusritmi_' + k, JSON.stringify(v)); } catch { /* yoksay */ } },
   };
-  const defaults = { mode: 'time', time: 30, words: 25, lang: 'tr', punct: false, nums: false, fx: 2, sound: false, kb: true, view: 'test' };
+  const defaults = { mode: 'time', time: 30, words: 25, lang: 'tr', punct: false, nums: false, fx: 2, sound: false, kb: true, view: 'test', theme: 'light', layout: 'q', challenge: 'classic' };
   const settings = { ...defaults, ...store.get('settings', {}) };
   const save = () => store.set('settings', settings);
   let customText = store.get('custom', 'Klavyede hızlı yazmak, düzenli pratik ve doğru parmak kullanımıyla gelişen bir beceridir. Önce doğruluğa odaklan, hız kendiliğinden gelecek.');
@@ -56,7 +56,7 @@ window.App = (() => {
   const input = $('#hiddenInput');
   const caret = document.createElement('div');
   caret.className = 'caret blink';
-  const kb = KB.create('#kbTest');
+  const kb = KB.create('#kbTest', settings.layout);
 
   /* ---------- Metin üretimi ---------- */
   const rand = (n) => Math.floor(Math.random() * n);
@@ -119,9 +119,55 @@ window.App = (() => {
   let T = null;
   let wordEls = [];
   let lineH = 0, scrollY = 0;
+  let arcade = null;
+  let arcadeFrame = 0, arcadeSpawnTimer = 0, arcadeLast = 0;
+  function stopArcade() { if (arcadeFrame) cancelAnimationFrame(arcadeFrame); clearInterval(arcadeSpawnTimer); arcadeFrame=0; arcadeSpawnTimer=0; }
+  function arcadeWord() { const pool=WORDS[settings.lang]||WORDS.tr; return pool[rand(pool.length)]; }
+  function spawnArcadeTarget(fixed=false) {
+    if (!arcade?.active) return;
+    const word=arcadeWord(),el=document.createElement('span'); el.className=fixed?'fall-word survival-word':'fall-word';el.textContent=word;
+    const t={el,word,x:fixed?50:8+Math.random()*82,y:fixed?44:-8,speed:fixed?0:6.5+Math.random()*1.5+Math.min(18,arcade.score*.08)};
+    el.style.left=t.x+'%';el.style.top=t.y+'%';$('#rainBoard').appendChild(el);arcade.targets.push(t);if(fixed)arcade.current=t;
+  }
+  function startArcade() {
+    stopArcade();arcade={mode:settings.challenge,score:0,combo:0,lives:3,typed:'',targets:[],active:true,spawnElapsed:0};
+    document.body.classList.remove('typing');
+    const falling=arcade.mode==='falling';$('#arcadeTitle').textContent=falling?'Kelime Yağmuru':'Hayatta Kalma';
+    $('#arcadeEyebrow').textContent=falling?'ARCADE / WORD RAIN':'ARCADE / LAST STAND';
+    $('#arcadeHelp').textContent=falling?'Kelimeler zemine ulaşmadan tamamını yaz. Kaçan her kelime bir can götürür.':'Tek hedefi hatasız tamamla. Yanlış tuş can götürür; üç canla en yüksek serini yap.';
+    $('#arcadeScore').textContent='0';$('#arcadeCombo').textContent='0×';$('#arcadeLives').textContent='♥ ♥ ♥';$('#arcadeTyped').textContent='Hazır';$('#rainToast').textContent='Başlamak için yazmaya başla';
+    $('#rainBoard').classList.toggle('survival-board',!falling);$('#rainBoard').replaceChildren();
+    const lane=document.createElement('div');lane.className='rain-lane';$('#rainBoard').appendChild(lane);const floor=document.createElement('div');floor.className='rain-floor';$('#rainBoard').appendChild(floor);
+    $('#testArea').hidden=true;$('#results').hidden=true;$('#arcadeArea').hidden=false;
+    if(falling)spawnArcadeTarget();else spawnArcadeTarget(true);
+    arcadeLast=performance.now();arcadeFrame=requestAnimationFrame(arcadeLoop);
+  }
+  function arcadeMistake(t) { if(!arcade?.active)return;arcade.lives--;arcade.combo=0;arcade.typed='';if(t&&t.el.isConnected)t.el.textContent=t.word;$('#arcadeLives').textContent='♥ '.repeat(Math.max(0,arcade.lives))+'♡ '.repeat(Math.max(0,3-arcade.lives));$('#arcadeCombo').textContent='0×';$('#rainToast').textContent='HATA!';const b=$('#rainBoard');b.classList.remove('arcade-hit');void b.offsetWidth;b.classList.add('arcade-hit');if(t&&t.el.isConnected)FX.mistakeEl(t.el,18);if(arcade.lives<=0)finishArcade(); }
+  function arcadeKey(ch) {
+    if(!arcade?.active)return;if(ch==='Escape'||ch==='Tab'){newTest();return;}if(ch==='Backspace'){arcade.typed=arcade.typed.slice(0,-1);return;}if(ch.length!==1||ch===' ')return;
+    const input=arcade.typed+ch.toLocaleLowerCase('tr');
+    if(arcade.mode==='survival'){
+      const t=arcade.current;
+      if(!t||!t.word.toLocaleLowerCase('tr').startsWith(input)){arcadeMistake(t);return;}
+      arcade.typed=input;
+      if(input===t.word.toLocaleLowerCase('tr')){
+        FX.hitEl(t.el,'ok',{strength:1.6});
+        t.el.classList.add('word-cleared');
+        arcade.score+=10+Math.min(20,arcade.combo);arcade.combo++;
+        arcade.typed='';arcade.current=null;arcade.targets=[];
+        $('#arcadeScore').textContent=arcade.score;$('#arcadeCombo').textContent=arcade.combo+'×';$('#rainToast').textContent='SERİ!';
+        t.el.remove();spawnArcadeTarget(true);
+      }
+      return;
+    }
+    const t=arcade.targets.find(x=>x.word.toLocaleLowerCase('tr').startsWith(input));if(!t){arcadeMistake();return;}arcade.typed=input;t.el.classList.add('targeting');if(input===t.word.toLocaleLowerCase('tr')){FX.hitEl(t.el,'ok',{strength:1.6});t.el.remove();arcade.targets=arcade.targets.filter(x=>x!==t);arcade.score+=10+Math.min(20,arcade.combo++);arcade.typed='';$('#arcadeScore').textContent=arcade.score;$('#arcadeCombo').textContent=arcade.combo+'×';$('#rainToast').textContent='VURDUN!';}
+  }
+  function arcadeLoop(now){if(!arcade?.active)return;const elapsed=Math.min(now-arcadeLast,50),dt=elapsed/1000;arcadeLast=now;if(arcade.mode==='falling'){arcade.spawnElapsed+=elapsed;const spawnEvery=Math.max(1300,4600-arcade.score*20);if(arcade.spawnElapsed>=spawnEvery&&arcade.targets.length<8){spawnArcadeTarget();arcade.spawnElapsed=0;}arcade.targets.slice().forEach(t=>{t.y+=t.speed*dt;t.el.style.top=t.y+'%';if(t.y>88){t.el.remove();arcade.targets=arcade.targets.filter(x=>x!==t);arcadeMistake();}});}arcadeFrame=requestAnimationFrame(arcadeLoop);}
+  function finishArcade(){if(!arcade?.active)return;arcade.active=false;stopArcade();const rows=store.get('scores',[]);rows.push({name:store.get('playerName','Oyuncu'),wpm:arcade.score,acc:100,challenge:arcade.mode,layout:settings.layout,date:Date.now()});rows.sort((a,b)=>b.wpm-a.wpm);store.set('scores',rows.slice(0,50));$('#rainToast').textContent=`OYUN BİTTİ · ${arcade.score} PUAN`;$('#arcadeHelp').textContent=`Skorun ${arcade.score}. Yeniden başlat veya skor tablosuna göz at.`;}
 
   function newTest(repeat = false) {
     if (T) clearInterval(T.iv);
+    stopArcade();if(settings.challenge==='falling'||settings.challenge==='survival'){startArcade();return;}$('#arcadeArea').hidden=true;
     const words = repeat && T ? T.words.slice() : buildWords();
     T = {
       words, inputs: [''], wi: 0,
@@ -267,7 +313,10 @@ window.App = (() => {
       prog.classList.toggle('show', T.started);
     }
     const el = elapsedSec();
-    $('#liveWpm').textContent = el > 1 ? Math.round(wpmOf(countStats().cw, el)) : 0;
+    const liveWpm = el > 1 ? Math.round(wpmOf(countStats().cw, el)) : 0;
+    $('#liveWpm').textContent = liveWpm;
+    // Yazma ritmi yükseldikçe sahnenin ışık enerjisini kademeli artır.
+    document.body.style.setProperty('--tempo', Math.min(1, liveWpm / 110).toFixed(2));
     $('#liveAcc').textContent = T.keys ? Math.round((T.okKeys / T.keys) * 100) : 100;
     const k = pbKey();
     const pb = k ? store.get('pb', {})[k] : null;
@@ -277,6 +326,7 @@ window.App = (() => {
   /* ---------- Yazma ---------- */
   function startTest() {
     T.started = true;
+    T.cleanStreak = 0;
     T.t0 = performance.now();
     T.iv = setInterval(tick, 100);
     document.body.classList.add('typing');
@@ -295,6 +345,14 @@ window.App = (() => {
 
     const pos = typed.length;
     const correct = target[pos] === ch;
+    if (correct) T.cleanStreak = (T.cleanStreak || 0) + 1;
+    else {
+      const cleanStreak = T.cleanStreak || 0;
+      const fastEnough = elapsedSec() > 0 && wpmOf(countStats().cw, elapsedSec()) >= 45;
+      if (cleanStreak >= 12 && fastEnough) FX.mistakeEl(letterEl(T.wi, pos), cleanStreak);
+      else FX.hitEl(letterEl(T.wi, pos), 'bad', { strength: 1.5, w: 56, h: 56 });
+      T.cleanStreak = 0;
+    }
     T.inputs[T.wi] = typed + ch;
     T.keys++; T.secKeys++;
     if (correct) T.okKeys++; else T.secErr++;
@@ -303,7 +361,7 @@ window.App = (() => {
     updateCaret();
 
     const le = letterEl(T.wi, pos);
-    FX.hitEl(le, correct ? 'ok' : 'warn', { inset: 2 });
+    if (correct) FX.hitEl(le, 'ok', { inset: 2, strength: T.cleanStreak > 0 && T.cleanStreak % 8 === 0 ? 1.4 : 1 });
     kb.press(ch, correct ? 'k-ok' : 'k-warn');
     correct ? Sound.ok(pos, T.wi) : Sound.warn();
 
@@ -380,6 +438,12 @@ window.App = (() => {
     const mean = raws.reduce((a, b) => a + b, 0) / (raws.length || 1);
     const sd = Math.sqrt(raws.reduce((a, b) => a + (b - mean) ** 2, 0) / (raws.length || 1));
     const cons = mean ? Math.max(0, 100 * (1 - sd / mean)) : 0;
+    if (wpm > 0) {
+      const scores = store.get('scores', []);
+      scores.push({ name: store.get('playerName', 'Oyuncu'), wpm: Math.round(wpm), acc: Math.round(acc), challenge: settings.challenge || 'classic', layout: settings.layout || 'q', date: Date.now() });
+      scores.sort((a, b) => b.wpm - a.wpm || b.acc - a.acc || b.date - a.date);
+      store.set('scores', scores.slice(0, 50));
+    }
 
     // Rekor
     const k = pbKey();
@@ -496,6 +560,19 @@ window.App = (() => {
 
   /* ---------- Yapılandırma çubuğu ---------- */
   function syncConfig() {
+    $$('#cfgLayout button').forEach((b) => b.classList.toggle('active', b.dataset.layout === settings.layout));
+    $$('#cfgChallenge button').forEach((b) => b.classList.toggle('active', b.dataset.challenge === (settings.challenge || 'classic')));
+    const arcadeMode = settings.challenge === 'falling' || settings.challenge === 'survival';
+    $('#cfgMode').hidden = arcadeMode; $('#cfgAmount').hidden = arcadeMode; $('#cfgExtras').hidden = arcadeMode;
+    settings.theme = settings.theme === 'dark' ? 'dark' : 'light';
+    document.body.classList.toggle('theme-dark', settings.theme === 'dark');
+    const themeButton = $('#btnTheme');
+    themeButton.setAttribute('aria-pressed', settings.theme === 'dark');
+    themeButton.title = settings.theme === 'dark' ? 'Aydınlık temaya geç' : 'Karanlık temaya geç';
+    $('#themeLabel').textContent = settings.theme === 'dark' ? 'Karanlık' : 'Aydınlık';
+    themeButton.innerHTML = settings.theme === 'dark'
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.7 8.7 0 1 0 20.5 15.2Z"/></svg><span id="themeLabel">Karanlık</span>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><span id="themeLabel">Aydınlık</span>';
     $$('#cfgMode button').forEach((b) => b.classList.toggle('active', b.dataset.mode === settings.mode));
     $$('#cfgLang button').forEach((b) => b.classList.toggle('active', b.dataset.lang === settings.lang));
     $$('#cfgExtras button').forEach((b) => b.classList.toggle('active', !!settings[b.dataset.toggle]));
@@ -533,13 +610,28 @@ window.App = (() => {
   $('#cfgMode').addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b) return;
+    settings.challenge = 'classic';
     if (b.dataset.mode === 'custom') { openCustom(); return; }
     settings.mode = b.dataset.mode; save(); syncConfig(); newTest();
+  });
+  $('#cfgChallenge').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    settings.challenge = b.dataset.challenge;
+    if (settings.challenge === 'classic') { settings.mode = 'time'; settings.time = 30; }
+    save(); syncConfig(); newTest();
   });
   $('#cfgLang').addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b) return;
     settings.lang = b.dataset.lang; save(); syncConfig(); newTest();
+  });
+  $('#cfgLayout').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || b.dataset.layout === settings.layout) return;
+    settings.layout = b.dataset.layout;
+    save();
+    location.reload();
   });
   $('#cfgExtras').addEventListener('click', (e) => {
     const b = e.target.closest('button');
@@ -547,9 +639,11 @@ window.App = (() => {
     settings[b.dataset.toggle] = !settings[b.dataset.toggle]; save(); syncConfig(); newTest();
   });
   $('#btnFx').onclick = () => { settings.fx = (settings.fx + 2) % 3; save(); syncConfig(); demoFx(); blurBtn(); };
+  $('#btnTheme').onclick = () => { settings.theme = settings.theme === 'dark' ? 'light' : 'dark'; save(); syncConfig(); blurBtn(); };
   $('#btnSound').onclick = () => { settings.sound = !settings.sound; save(); syncConfig(); Sound.ok(0); blurBtn(); };
   $('#btnKb').onclick = () => { settings.kb = !settings.kb; save(); syncConfig(); requestAnimationFrame(updateCaret); blurBtn(); };
   $('#btnRestart').onclick = () => newTest();
+  $('#btnArcadeRestart').onclick = () => newTest();
   $('#btnNext').onclick = () => newTest();
   $('#btnRepeat').onclick = () => newTest(true);
   const blurBtn = () => document.activeElement && document.activeElement.blur();
@@ -619,6 +713,7 @@ window.App = (() => {
     const v = input.value;
     input.value = '';
     if (!v || settings.view !== 'test') return;
+    if (settings.challenge === 'falling' || settings.challenge === 'survival') { for (const ch of v) arcadeKey(ch); return; }
     for (const ch of v) typeChar(ch);
   });
 
@@ -626,6 +721,12 @@ window.App = (() => {
   document.addEventListener('keydown', (e) => {
     if (dlg.open) return;
     if (settings.view === 'guide') { window.Guide && Guide.handle(e); return; }
+    if (settings.view === 'test' && (settings.challenge === 'falling' || settings.challenge === 'survival')) {
+      if (e.key === 'Tab' || e.key === 'Escape' || e.key === 'Backspace' || e.key.length === 1) {
+        e.preventDefault(); arcadeKey(['Tab','Escape','Backspace'].includes(e.key) ? e.key : kb.characterFromEvent(e));
+      }
+      return;
+    }
     const tag = e.target.tagName;
     if ((tag === 'TEXTAREA' || (tag === 'INPUT' && e.target !== input)) ) return;
 
@@ -645,11 +746,35 @@ window.App = (() => {
     const ctrlOnly = (e.ctrlKey && !e.altKey) || e.metaKey;
     if (e.key.length === 1 && !ctrlOnly) {
       e.preventDefault();
-      typeChar(e.key);
+      typeChar(kb.characterFromEvent(e));
     }
   });
 
   addEventListener('resize', () => { if (T && !T.finished) { measure(); updateCaret(); } else if (T && T.finished) drawChart(); });
+
+  let scoreFilter = 'all';
+  function renderScores() {
+    const body = $('#scoreRows');
+    body.replaceChildren();
+    const nameInput = $('#playerName');
+    if (nameInput && !nameInput.value) nameInput.value = store.get('playerName', 'Oyuncu');
+    const rows = store.get('scores', []).filter((s) => scoreFilter === 'all' || s.layout === scoreFilter);
+    $('#scoreEmpty').hidden = rows.length > 0;
+    rows.forEach((s, i) => {
+      const tr = document.createElement('tr');
+      [String(i + 1), s.name || 'Oyuncu', ({ classic: 'Klasik', sprint: 'Sprint 15 sn', endurance: 'Dayanıklılık' })[s.challenge] || s.challenge, (s.layout || 'q').toUpperCase(), `${s.wpm} WPM`, `${s.acc}%`, new Date(s.date).toLocaleDateString('tr-TR')].forEach((value) => {
+        const td = document.createElement('td'); td.textContent = value; tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+  }
+  $('#playerName').addEventListener('input', (e) => store.set('playerName', e.target.value.trim().slice(0, 18) || 'Oyuncu'));
+  $('#scoreFilters').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    scoreFilter = b.dataset.filter;
+    $$('#scoreFilters button').forEach((x) => x.classList.toggle('active', x === b));
+    renderScores();
+  });
 
   /* ---------- Görünüm geçişi ---------- */
   function setView(v) {
@@ -661,13 +786,17 @@ window.App = (() => {
     });
     $('#view-test').hidden = v !== 'test';
     $('#view-guide').hidden = v !== 'guide';
+    $('#view-scores').hidden = v !== 'scores';
     document.body.classList.remove('typing');
     if (v === 'test') {
       if (T && T.started && !T.finished) newTest(true);
       requestAnimationFrame(() => { measure(); updateCaret(); focusInput(); });
-    } else {
+    } else if (v === 'guide') {
       input.blur();
       window.Guide && Guide.activate();
+    } else {
+      input.blur();
+      renderScores();
     }
   }
   $$('.tab').forEach((t) => (t.onclick = () => { setView(t.dataset.view); t.blur(); }));

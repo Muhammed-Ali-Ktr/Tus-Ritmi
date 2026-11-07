@@ -6,7 +6,7 @@ window.Guide = (() => {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const { FINGERS } = KB;
-  const kb = KB.create('#kbGuide');
+  const kb = KB.create('#kbGuide', App.settings.layout);
   const fingersSvg = $$('#hands .finger');
 
   const LESSONS = {
@@ -192,7 +192,7 @@ window.Guide = (() => {
     if (!stats.t0) stats.t0 = performance.now();
 
     const want = seq[idx];
-    const got = e.key.toLocaleLowerCase('tr');
+    const got = kb.characterFromEvent(e).toLocaleLowerCase('tr');
     const spans = $('#drillStrip').children;
 
     if (got === want) {
